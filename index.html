@@ -9,43 +9,16 @@
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      background-color: #f4f6f8;
       padding: 20px;
-      margin: 0;
     }
     .container {
       max-width: 400px;
       margin: auto;
-      background-color: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     }
-    h1 {
-      color: #2c3e50;
-      margin-bottom: 20px;
-    }
-    input[type="number"] {
-      width: calc(100% - 22px);
+    input, button {
+      margin: 10px;
       padding: 10px;
-      margin: 8px 0;
-      border-radius: 5px;
-      border: 1px solid #ccc;
       font-size: 16px;
-    }
-    button {
-      padding: 10px 15px;
-      margin: 5px;
-      font-size: 16px;
-      border: none;
-      border-radius: 5px;
-      background-color: #3498db;
-      color: white;
-      cursor: pointer;
-    }
-    button:disabled {
-      background-color: #999;
-      cursor: not-allowed;
     }
     .progress {
       height: 30px;
@@ -64,41 +37,29 @@
       margin-top: 30px;
       text-align: left;
     }
-    #history h3 {
-      text-align: center;
-    }
     canvas {
       margin-top: 30px;
       max-width: 100%;
-      background: #fff;
-      border-radius: 8px;
-      padding: 10px;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Su İçme Hatırlatıcısı</h1>
-
-    <p>Günlük hedef: <span id="dailyGoalDisplay">0</span> ml</p>
-
+    <p>Günlük hedef: <span id="dailyGoalDisplay"></span> ml</p>
     <input type="number" id="goalInput" placeholder="Günlük hedef (ml)" />
     <button onclick="setDailyGoal()">Hedefi Kaydet</button>
-
-    <br>
-
+    <br />
     <input type="number" id="waterInput" placeholder="İçtiğin su (ml)" value="180" />
     <button onclick="addWater()">Ekle</button>
-    <button onclick="undoWater()" id="undoBtn" disabled>Geri Al</button>
-
-    <p>Toplam içilen: <span id="totalDrank">0</span> ml (<span id="totalCups">0</span> bardak)</p>
+    <button onclick="undoWater()" id="undoBtn" disabled>Geri Al</button> <!-- Geri Al Butonu -->
+    <p>Toplam içilen: <span id="totalDrank">0</span> ml (<span id="totalCups">0</span> bardak)</p> <!-- Bardak sayısı eklendi -->
     <p>Kalan: <span id="remaining">0</span> ml</p>
-
     <div class="progress">
       <div class="progress-bar" id="progressBar"></div>
     </div>
 
-    <canvas id="historyChart" height="200"></canvas>
+    <canvas id="historyChart"></canvas>
 
     <div id="history">
       <h3>Geçmiş Günler</h3>
@@ -112,6 +73,8 @@
     let dailyGoal = parseInt(localStorage.getItem('dailyGoal')) || 2800;
     if (!waterData[todayKey]) waterData[todayKey] = 0;
     let totalDrank = waterData[todayKey];
+
+    // Geri al işlemi için son eklenen miktar
     let lastAddedAmount = 0;
 
     function setDailyGoal() {
@@ -134,14 +97,15 @@
         if (totalDrank > dailyGoal) totalDrank = dailyGoal;
         waterData[todayKey] = totalDrank;
         localStorage.setItem('waterData', JSON.stringify(waterData));
-        lastAddedAmount = amount;
-        document.getElementById("undoBtn").disabled = false;
+        lastAddedAmount = amount;   // Son eklenen miktarı sakla
+        document.getElementById("undoBtn").disabled = false; // Geri al aktif
         updateDisplay();
         updateHistory();
         updateChart();
       } else {
         alert("Lütfen geçerli bir miktar giriniz.");
       }
+      // input.value = amount; // isteğe bağlı, bırakabilirsin
     }
 
     function undoWater() {
@@ -151,7 +115,7 @@
         waterData[todayKey] = totalDrank;
         localStorage.setItem('waterData', JSON.stringify(waterData));
         lastAddedAmount = 0;
-        document.getElementById("undoBtn").disabled = true;
+        document.getElementById("undoBtn").disabled = true; // Geri al devre dışı
         updateDisplay();
         updateHistory();
         updateChart();
@@ -163,7 +127,11 @@
       const percent = (totalDrank / dailyGoal) * 100;
       document.getElementById("dailyGoalDisplay").textContent = dailyGoal;
       document.getElementById("totalDrank").textContent = totalDrank;
-      document.getElementById("totalCups").textContent = (totalDrank / 180).toFixed(1);
+
+      // Bardak sayısını hesapla (1 bardak = 180 ml)
+      const cups = (totalDrank / 180).toFixed(1);
+      document.getElementById("totalCups").textContent = cups;
+
       document.getElementById("remaining").textContent = Math.max(0, remaining);
       document.getElementById("progressBar").style.width = percent + "%";
     }
@@ -184,6 +152,7 @@
       const sortedDates = Object.keys(waterData).sort();
       const chartData = sortedDates.map(date => waterData[date]);
       const chartLabels = sortedDates.map(date => date.slice(5));
+
       if (window.historyChart) window.historyChart.destroy();
       window.historyChart = new Chart(ctx, {
         type: 'bar',
@@ -219,8 +188,9 @@
       }
     }
 
-    setInterval(showNotification, 1000 * 60 * 60 * 2); // 2 saatte bir
+    setInterval(showNotification, 1000 * 60 * 60 * 2); // 2 saatte bir bildirim
 
+    // İlk yükleme
     updateDisplay();
     updateHistory();
     updateChart();
