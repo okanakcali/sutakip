@@ -6,40 +6,97 @@
   <title>Su İçme Takibi</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f4f6f8;
+      color: #333;
     }
+
     .container {
-      max-width: 400px;
-      margin: auto;
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #ffffff;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-radius: 10px;
+      margin-top: 30px;
     }
-    input, button {
-      margin: 10px;
-      padding: 10px;
+
+    h1 {
+      color: #2c7be5;
+      margin-bottom: 10px;
+    }
+
+    input[type="number"], button {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
       font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
     }
+
+    button {
+      background-color: #2c7be5;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #1a5dc9;
+    }
+
     .progress {
       height: 30px;
       background-color: #e0e0e0;
-      border-radius: 5px;
+      border-radius: 15px;
       overflow: hidden;
-      margin-top: 20px;
+      margin: 20px 0;
     }
+
     .progress-bar {
       height: 100%;
       background-color: #4caf50;
       width: 0%;
-      transition: width 0.5s;
+      transition: width 0.5s ease;
     }
+
     #history {
       margin-top: 30px;
       text-align: left;
     }
+
+    #history ul {
+      padding-left: 20px;
+    }
+
     canvas {
       margin-top: 30px;
       max-width: 100%;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 15px;
+        margin-top: 15px;
+        border-radius: 0;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+
+      input, button {
+        font-size: 14px;
+      }
     }
   </style>
 </head>
@@ -49,12 +106,12 @@
     <p>Günlük hedef: <span id="dailyGoalDisplay"></span> ml</p>
     <input type="number" id="goalInput" placeholder="Günlük hedef (ml)" />
     <button onclick="setDailyGoal()">Hedefi Kaydet</button>
-    <br />
     <input type="number" id="waterInput" placeholder="İçtiğin su (ml)" value="180" />
     <button onclick="addWater()">Ekle</button>
-    <button onclick="undoWater()" id="undoBtn" disabled>Geri Al</button> <!-- Geri Al Butonu -->
-    <p>Toplam içilen: <span id="totalDrank">0</span> ml (<span id="totalCups">0</span> bardak)</p> <!-- Bardak sayısı eklendi -->
-    <p>Kalan: <span id="remaining">0</span> ml</p>
+    <button onclick="undoWater()" id="undoBtn" disabled>Geri Al</button>
+    <p><strong>Toplam içilen:</strong> <span id="totalDrank">0</span> ml (<span id="totalCups">0</span> bardak)</p>
+    <p><strong>Kalan:</strong> <span id="remaining">0</span> ml</p>
+
     <div class="progress">
       <div class="progress-bar" id="progressBar"></div>
     </div>
@@ -73,8 +130,6 @@
     let dailyGoal = parseInt(localStorage.getItem('dailyGoal')) || 2800;
     if (!waterData[todayKey]) waterData[todayKey] = 0;
     let totalDrank = waterData[todayKey];
-
-    // Geri al işlemi için son eklenen miktar
     let lastAddedAmount = 0;
 
     function setDailyGoal() {
@@ -97,15 +152,14 @@
         if (totalDrank > dailyGoal) totalDrank = dailyGoal;
         waterData[todayKey] = totalDrank;
         localStorage.setItem('waterData', JSON.stringify(waterData));
-        lastAddedAmount = amount;   // Son eklenen miktarı sakla
-        document.getElementById("undoBtn").disabled = false; // Geri al aktif
+        lastAddedAmount = amount;
+        document.getElementById("undoBtn").disabled = false;
         updateDisplay();
         updateHistory();
         updateChart();
       } else {
         alert("Lütfen geçerli bir miktar giriniz.");
       }
-      // input.value = amount; // isteğe bağlı, bırakabilirsin
     }
 
     function undoWater() {
@@ -115,7 +169,7 @@
         waterData[todayKey] = totalDrank;
         localStorage.setItem('waterData', JSON.stringify(waterData));
         lastAddedAmount = 0;
-        document.getElementById("undoBtn").disabled = true; // Geri al devre dışı
+        document.getElementById("undoBtn").disabled = true;
         updateDisplay();
         updateHistory();
         updateChart();
@@ -127,11 +181,7 @@
       const percent = (totalDrank / dailyGoal) * 100;
       document.getElementById("dailyGoalDisplay").textContent = dailyGoal;
       document.getElementById("totalDrank").textContent = totalDrank;
-
-      // Bardak sayısını hesapla (1 bardak = 180 ml)
-      const cups = (totalDrank / 180).toFixed(1);
-      document.getElementById("totalCups").textContent = cups;
-
+      document.getElementById("totalCups").textContent = (totalDrank / 180).toFixed(1);
       document.getElementById("remaining").textContent = Math.max(0, remaining);
       document.getElementById("progressBar").style.width = percent + "%";
     }
@@ -166,9 +216,7 @@
         },
         options: {
           scales: {
-            y: {
-              beginAtZero: true
-            }
+            y: { beginAtZero: true }
           }
         }
       });
@@ -188,9 +236,8 @@
       }
     }
 
-    setInterval(showNotification, 1000 * 60 * 60 * 2); // 2 saatte bir bildirim
+    setInterval(showNotification, 1000 * 60 * 60 * 2); // 2 saatte bir
 
-    // İlk yükleme
     updateDisplay();
     updateHistory();
     updateChart();
