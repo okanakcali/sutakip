@@ -3,245 +3,114 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Su İçme Takibi</title>
+  <title>Su Takip</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      padding: 0;
-      background: #f4f6f8;
-      color: #333;
-    }
-
-    .container {
-      max-width: 500px;
-      margin: 0 auto;
-      padding: 20px;
-      background: #ffffff;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      border-radius: 10px;
-      margin-top: 30px;
-    }
-
-    h1 {
-      color: #2c7be5;
-      margin-bottom: 10px;
-    }
-
-    input[type="number"], button {
-      width: 100%;
-      padding: 12px;
-      margin: 10px 0;
-      font-size: 16px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-    }
-
-    button {
-      background-color: #2c7be5;
-      color: white;
-      border: none;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-
-    button:hover {
-      background-color: #1a5dc9;
-    }
-
-    .progress {
-      height: 30px;
-      background-color: #e0e0e0;
-      border-radius: 15px;
-      overflow: hidden;
-      margin: 20px 0;
-    }
-
-    .progress-bar {
-      height: 100%;
-      background-color: #4caf50;
-      width: 0%;
-      transition: width 0.5s ease;
-    }
-
-    #history {
-      margin-top: 30px;
-      text-align: left;
-    }
-
-    #history ul {
-      padding-left: 20px;
-    }
-
-    canvas {
-      margin-top: 30px;
-      max-width: 100%;
-    }
-
-    @media (max-width: 600px) {
-      .container {
-        padding: 15px;
-        margin-top: 15px;
-        border-radius: 0;
-      }
-
-      h1 {
-        font-size: 22px;
-      }
-
-      input, button {
-        font-size: 14px;
-      }
-    }
+    body { font-family: Arial, sans-serif; background: #f4f6f8; margin: 0; padding: 0; }
+    .container { max-width: 500px; margin: 20px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+    input, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    button { background-color: #2c7be5; color: white; border: none; cursor: pointer; }
+    button:hover { background-color: #1a5dc9; }
+    .progress { height: 30px; background: #e0e0e0; border-radius: 15px; overflow: hidden; margin: 20px 0; }
+    .progress-bar { height: 100%; background: #4caf50; width: 0%; transition: width 0.5s ease; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Su İçme Hatırlatıcısı</h1>
-    <p>Günlük hedef: <span id="dailyGoalDisplay"></span> ml</p>
-    <input type="number" id="goalInput" placeholder="Günlük hedef (ml)" />
-    <button onclick="setDailyGoal()">Hedefi Kaydet</button>
-    <input type="number" id="waterInput" placeholder="İçtiğin su (ml)" value="180" />
-    <button onclick="addWater()">Ekle</button>
-    <button onclick="undoWater()" id="undoBtn" disabled>Geri Al</button>
-    <p><strong>Toplam içilen:</strong> <span id="totalDrank">0</span> ml (<span id="totalCups">0</span> bardak)</p>
-    <p><strong>Kalan:</strong> <span id="remaining">0</span> ml</p>
+    <form id="loginForm">
+      <h2>Giriş Yap veya Kayıt Ol</h2>
+      <input type="email" id="email" placeholder="E-posta" required />
+      <input type="password" id="password" placeholder="Şifre" required />
+      <button id="loginBtn">Giriş Yap</button>
+      <button id="registerBtn">Kayıt Ol</button>
+    </form>
 
-    <div class="progress">
-      <div class="progress-bar" id="progressBar"></div>
-    </div>
-
-    <canvas id="historyChart"></canvas>
-
-    <div id="history">
-      <h3>Geçmiş Günler</h3>
-      <ul id="historyList"></ul>
+    <div id="mainApp" style="display:none">
+      <h1>Su Takip</h1>
+      <button id="logoutBtn">Çıkış Yap</button>
+      <p>Günlük hedef: <span id="dailyGoalDisplay"></span> ml</p>
+      <input type="number" id="goalInput" placeholder="Günlük hedef (ml)" />
+      <button onclick="setDailyGoal()">Hedefi Kaydet</button>
+      <input type="number" id="waterInput" placeholder="İçtiğin su (ml)" value="180" />
+      <button onclick="addWater()">Ekle</button>
+      <button onclick="undoWater()" id="undoBtn" disabled>Geri Al</button>
+      <p><strong>Toplam içilen:</strong> <span id="totalDrank">0</span> ml (<span id="totalCups">0</span> bardak)</p>
+      <p><strong>Kalan:</strong> <span id="remaining">0</span> ml</p>
+      <div class="progress">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <canvas id="historyChart"></canvas>
+      <div id="history">
+        <h3>Geçmiş Günler</h3>
+        <ul id="historyList"></ul>
+      </div>
     </div>
   </div>
 
-  <script>
-    const todayKey = new Date().toISOString().split('T')[0];
-    let waterData = JSON.parse(localStorage.getItem('waterData')) || {};
-    let dailyGoal = parseInt(localStorage.getItem('dailyGoal')) || 2800;
-    if (!waterData[todayKey]) waterData[todayKey] = 0;
-    let totalDrank = waterData[todayKey];
-    let lastAddedAmount = 0;
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getAuth,
+      onAuthStateChanged,
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword,
+      signOut,
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    function setDailyGoal() {
-      const goalInput = document.getElementById("goalInput");
-      const newGoal = parseInt(goalInput.value);
-      if (!isNaN(newGoal) && newGoal > 0) {
-        dailyGoal = newGoal;
-        localStorage.setItem('dailyGoal', dailyGoal);
-        updateDisplay();
+    const firebaseConfig = {
+      apiKey: "AIzaSyAUOg2B9AhAHQ93yOT2jInvGUIiuNCawZ8",
+      authDomain: "su-takip-7e378.firebaseapp.com",
+      projectId: "su-takip-7e378",
+      storageBucket: "su-takip-7e378.appspot.com",
+      messagingSenderId: "266700306652",
+      appId: "1:266700306652:web:a99dfb9f3270c7f65f5c19"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth();
+    const db = getFirestore();
+
+    const loginForm = document.getElementById("loginForm");
+    const emailInput = document.getElementById("email");
+    const passwordInput = document.getElementById("password");
+    const loginBtn = document.getElementById("loginBtn");
+    const registerBtn = document.getElementById("registerBtn");
+
+    loginBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+      } catch (error) {
+        alert("Giriş başarısız: " + error.message);
+      }
+    });
+
+    registerBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try {
+        await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+        alert("Kayıt başarılı, şimdi giriş yapabilirsiniz.");
+      } catch (error) {
+        alert("Kayıt başarısız: " + error.message);
+      }
+    });
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        loginForm.style.display = "none";
+        document.getElementById("mainApp").style.display = "block";
       } else {
-        alert("Lütfen geçerli bir günlük hedef giriniz.");
+        loginForm.style.display = "block";
+        document.getElementById("mainApp").style.display = "none";
       }
-    }
+    });
 
-    function addWater() {
-      const input = document.getElementById("waterInput");
-      const amount = parseInt(input.value);
-      if (!isNaN(amount) && amount > 0) {
-        totalDrank += amount;
-        if (totalDrank > dailyGoal) totalDrank = dailyGoal;
-        waterData[todayKey] = totalDrank;
-        localStorage.setItem('waterData', JSON.stringify(waterData));
-        lastAddedAmount = amount;
-        document.getElementById("undoBtn").disabled = false;
-        updateDisplay();
-        updateHistory();
-        updateChart();
-      } else {
-        alert("Lütfen geçerli bir miktar giriniz.");
-      }
-    }
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await signOut(auth);
+    });
 
-    function undoWater() {
-      if (lastAddedAmount > 0) {
-        totalDrank -= lastAddedAmount;
-        if (totalDrank < 0) totalDrank = 0;
-        waterData[todayKey] = totalDrank;
-        localStorage.setItem('waterData', JSON.stringify(waterData));
-        lastAddedAmount = 0;
-        document.getElementById("undoBtn").disabled = true;
-        updateDisplay();
-        updateHistory();
-        updateChart();
-      }
-    }
-
-    function updateDisplay() {
-      const remaining = dailyGoal - totalDrank;
-      const percent = (totalDrank / dailyGoal) * 100;
-      document.getElementById("dailyGoalDisplay").textContent = dailyGoal;
-      document.getElementById("totalDrank").textContent = totalDrank;
-      document.getElementById("totalCups").textContent = (totalDrank / 180).toFixed(1);
-      document.getElementById("remaining").textContent = Math.max(0, remaining);
-      document.getElementById("progressBar").style.width = percent + "%";
-    }
-
-    function updateHistory() {
-      const historyList = document.getElementById("historyList");
-      historyList.innerHTML = "";
-      const dates = Object.keys(waterData).sort((a, b) => b.localeCompare(a));
-      dates.forEach(date => {
-        const li = document.createElement("li");
-        li.textContent = `${date}: ${waterData[date]} ml`;
-        historyList.appendChild(li);
-      });
-    }
-
-    function updateChart() {
-      const ctx = document.getElementById('historyChart').getContext('2d');
-      const sortedDates = Object.keys(waterData).sort();
-      const chartData = sortedDates.map(date => waterData[date]);
-      const chartLabels = sortedDates.map(date => date.slice(5));
-
-      if (window.historyChart) window.historyChart.destroy();
-      window.historyChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: chartLabels,
-          datasets: [{
-            label: 'İçilen Su (ml)',
-            data: chartData,
-            backgroundColor: '#4caf50'
-          }]
-        },
-        options: {
-          scales: {
-            y: { beginAtZero: true }
-          }
-        }
-      });
-    }
-
-    function requestNotificationPermission() {
-      if ('Notification' in window && Notification.permission !== 'granted') {
-        Notification.requestPermission();
-      }
-    }
-
-    function showNotification() {
-      if (Notification.permission === 'granted') {
-        new Notification('Su İçme Zamanı!', {
-          body: 'Bir bardak su içmeyi unutma 💧',
-        });
-      }
-    }
-
-    setInterval(showNotification, 1000 * 60 * 60 * 2); // 2 saatte bir
-
-    updateDisplay();
-    updateHistory();
-    updateChart();
-    requestNotificationPermission();
+    // Buraya `setDailyGoal`, `addWater`, `undoWater` gibi fonksiyonlar eklenecek.
   </script>
 </body>
 </html>
