@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Su Takip</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -23,27 +23,24 @@
       <input type="password" id="password" placeholder="Şifre" required />
       <button id="loginBtn">Giriş Yap</button>
       <button id="registerBtn">Kayıt Ol</button>
+      <button type="button" id="resetPasswordBtn" style="background:#f39c12;">Şifremi Unuttum</button>
     </form>
 
     <div id="mainApp" style="display:none">
       <h1>Su Takip</h1>
       <button id="logoutBtn">Çıkış Yap</button>
-      <p>Günlük hedef: <span id="dailyGoalDisplay"></span> ml</p>
+      <p>Günlük hedef: <span id="dailyGoalDisplay">0</span> ml</p>
       <input type="number" id="goalInput" placeholder="Günlük hedef (ml)" />
-      <button onclick="setDailyGoal()">Hedefi Kaydet</button>
+      <button id="saveGoalBtn">Hedefi Kaydet</button>
       <input type="number" id="waterInput" placeholder="İçtiğin su (ml)" value="180" />
-      <button onclick="addWater()">Ekle</button>
-      <button onclick="undoWater()" id="undoBtn" disabled>Geri Al</button>
+      <button id="addWaterBtn">Ekle</button>
+      <button id="undoBtn" disabled>Geri Al</button>
       <p><strong>Toplam içilen:</strong> <span id="totalDrank">0</span> ml (<span id="totalCups">0</span> bardak)</p>
       <p><strong>Kalan:</strong> <span id="remaining">0</span> ml</p>
       <div class="progress">
         <div class="progress-bar" id="progressBar"></div>
       </div>
-      <canvas id="historyChart"></canvas>
-      <div id="history">
-        <h3>Geçmiş Günler</h3>
-        <ul id="historyList"></ul>
-      </div>
+      <!-- Geçmiş ve grafik burada olabilir -->
     </div>
   </div>
 
@@ -55,8 +52,14 @@
       signInWithEmailAndPassword,
       createUserWithEmailAndPassword,
       signOut,
+      sendPasswordResetEmail
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import {
+      getFirestore,
+      doc,
+      setDoc,
+      getDoc,
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAUOg2B9AhAHQ93yOT2jInvGUIiuNCawZ8",
@@ -76,7 +79,34 @@
     const passwordInput = document.getElementById("password");
     const loginBtn = document.getElementById("loginBtn");
     const registerBtn = document.getElementById("registerBtn");
+    const resetPasswordBtn = document.getElementById("resetPasswordBtn");
+    const mainApp = document.getElementById("mainApp");
+    const logoutBtn = document.getElementById("logoutBtn");
 
+    const dailyGoalDisplay = document.getElementById("dailyGoalDisplay");
+    const goalInput = document.getElementById("goalInput");
+    const saveGoalBtn = document.getElementById("saveGoalBtn");
+
+    const waterInput = document.getElementById("waterInput");
+    const addWaterBtn = document.getElementById("addWaterBtn");
+    const undoBtn = document.getElementById("undoBtn");
+
+    const totalDrankDisplay = document.getElementById("totalDrank");
+    const totalCupsDisplay = document.getElementById("totalCups");
+    const remainingDisplay = document.getElementById("remaining");
+    const progressBar = document.getElementById("progressBar");
+
+    let dailyGoal = 0;
+    let totalDrank = 0;
+    let lastEntry = 0;
+
+    // Yardımcı: yyyy-mm-dd formatında bugünün tarihi
+    function getTodayDateString() {
+      const today = new Date();
+      return today.toISOString().split("T")[0];
+    }
+
+    // Kullanıcı giriş işlemi
     loginBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       try {
@@ -86,31 +116,189 @@
       }
     });
 
+    // Kayıt olma işlemi
     registerBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       try {
         await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
         alert("Kayıt başarılı, şimdi giriş yapabilirsiniz.");
       } catch (error) {
-        alert("Kayıt başarısız: " + error.message);
+        if (error.code === "auth/email-already-in-use") {
+          alert("Bu e-posta adresi zaten kayıtlı.");
+        } else {
+          alert("Kayıt başarısız: " + error.message);
+        }
       }
     });
 
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        loginForm.style.display = "none";
-        document.getElementById("mainApp").style.display = "block";
-      } else {
-        loginForm.style.display = "block";
-        document.getElementById("mainApp").style.display = "none";
+    // Şifre sıfırlama
+    resetPasswordBtn.addEventListener("click", async () => {
+      const email = emailInput.value;
+      if (!email) {
+        alert("Lütfen önce e-posta adresinizi girin.");
+        return;
+      }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        alert("Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.");
+      } catch (error) {
+        alert("Şifre sıfırlama başarısız: " + error.message);
       }
     });
 
-    document.getElementById("logoutBtn").addEventListener("click", async () => {
+    // Çıkış yapma
+    logoutBtn.addEventListener("click", async () => {
       await signOut(auth);
     });
 
-    // Buraya `setDailyGoal`, `addWater`, `undoWater` gibi fonksiyonlar eklenecek.
+    // Giriş durumunu dinle ve kullanıcıya özel verileri yükle
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        loginForm.style.display = "none";
+        mainApp.style.display = "block";
+        loadTodayData();
+      } else {
+        loginForm.style.display = "block";
+        mainApp.style.display = "none";
+        dailyGoal = 0;
+        totalDrank = 0;
+        lastEntry = 0;
+        resetUI();
+      }
+    });
+
+    // Günlük hedefi Firestore'a kaydet
+    saveGoalBtn.addEventListener("click", setDailyGoal);
+    async function setDailyGoal() {
+      const input = parseInt(goalInput.value);
+      if (!input || input <= 0) {
+        alert("Lütfen geçerli bir hedef girin.");
+        return;
+      }
+      if (!auth.currentUser) return;
+
+      const userId = auth.currentUser.uid;
+      const date = getTodayDateString();
+
+      const ref = doc(db, "users", userId, "waterLogs", date);
+      await setDoc(ref, { goal: input, totalDrank: 0 }, { merge: true });
+
+      dailyGoal = input;
+      totalDrank = 0;
+      lastEntry = 0;
+      updateUI();
+      alert("Hedef kaydedildi!");
+    }
+
+    // Su ekleme
+    addWaterBtn.addEventListener("click", addWater);
+    async function addWater() {
+      const input = parseInt(waterInput.value);
+      if (!input || input <= 0) return;
+      if (!auth.currentUser) return;
+
+      const userId = auth.currentUser.uid;
+      const date = getTodayDateString();
+      const ref = doc(db, "users", userId, "waterLogs", date);
+      const snap = await getDoc(ref);
+
+      let data = { goal: 2000, totalDrank: 0 }; // varsayılan
+
+      if (snap.exists()) {
+        data = snap.data();
+      }
+
+      // Eğer hedef belirlenmemişse kullanıcıya uyarı ver
+      if (!data.goal) {
+        alert("Lütfen önce günlük hedefinizi kaydedin.");
+        return;
+      }
+
+      const updated = {
+        ...data,
+        totalDrank: data.totalDrank + input,
+      };
+
+      await setDoc(ref, updated, { merge: true });
+
+      dailyGoal = updated.goal;
+      totalDrank = updated.totalDrank;
+      lastEntry = input;
+      updateUI();
+      undoBtn.disabled = false;
+    }
+
+    // Su ekleme işlemini geri al
+    undoBtn.addEventListener("click", undoWater);
+    async function undoWater() {
+      if (!auth.currentUser || lastEntry <= 0) return;
+
+      const userId = auth.currentUser.uid;
+      const date = getTodayDateString();
+      const ref = doc(db, "users", userId, "waterLogs", date);
+      const snap = await getDoc(ref);
+
+      if (!snap.exists()) return;
+
+      const data = snap.data();
+      const updated = {
+        ...data,
+        totalDrank: Math.max(0, data.totalDrank - lastEntry),
+      };
+
+      await setDoc(ref, updated, { merge: true });
+
+      totalDrank = updated.totalDrank;
+      lastEntry = 0;
+      updateUI();
+      undoBtn.disabled = true;
+    }
+
+    // Bugünün verisini Firestore’dan yükle
+    async function loadTodayData() {
+      if (!auth.currentUser) return;
+
+      const userId = auth.currentUser.uid;
+      const date = getTodayDateString();
+      const ref = doc(db, "users", userId, "waterLogs", date);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        const data = snap.data();
+        dailyGoal = data.goal || 0;
+        totalDrank = data.totalDrank || 0;
+      } else {
+        dailyGoal = 0;
+        totalDrank = 0;
+      }
+      lastEntry = 0;
+      updateUI();
+      undoBtn.disabled = true;
+    }
+
+    // Ekranı güncelle
+    function updateUI() {
+      dailyGoalDisplay.innerText = dailyGoal;
+      totalDrankDisplay.innerText = totalDrank;
+      totalCupsDisplay.innerText = Math.floor(totalDrank / 180);
+      remainingDisplay.innerText = Math.max(dailyGoal - totalDrank, 0);
+      updateProgressBar();
+    }
+
+    // UI sıfırla (logout sonrası vs.)
+    function resetUI() {
+      dailyGoalDisplay.innerText = "0";
+      totalDrankDisplay.innerText = "0";
+      totalCupsDisplay.innerText = "0";
+      remainingDisplay.innerText = "0";
+      updateProgressBar(0);
+    }
+
+    // Progress bar güncelle
+    function updateProgressBar() {
+      const progress = dailyGoal === 0 ? 0 : Math.min((totalDrank / dailyGoal) * 100, 100);
+      progressBar.style.width = progress + "%";
+    }
   </script>
 </body>
 </html>
